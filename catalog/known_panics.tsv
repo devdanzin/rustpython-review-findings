@@ -15,3 +15,5 @@ RPYR-0009	crates/vm/src/stdlib/itertools.rs:1306
 RPYR-0009	crates/vm/src/stdlib/itertools.rs:1412
 RPYR-0011	crates/stdlib/src/math.rs:733
 RPYR-0011	crates/stdlib/src/math.rs:735
+RPYR-0013	crates/vm/src/builtins/tuple.rs:499
+RPYR-0013	crates/vm/src/builtins/tuple.rs:683

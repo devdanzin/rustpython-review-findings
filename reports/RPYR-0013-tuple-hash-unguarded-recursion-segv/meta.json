@@ -1,0 +1,33 @@
+{
+  "id": "RPYR-0013",
+  "slug": "tuple-hash-unguarded-recursion-segv",
+  "title": "RPYR-0013 — `tuple.__hash__` recurses without a guard: hashing a deeply nested tuple (even just using it as a dict key) overflows the native stack → SIGSEGV (crates/vm/src/builtins/tuple.rs:683)",
+  "short_title": "`tuple.__hash__` unguarded recursion → SIGSEGV",
+  "kind": "segv",
+  "signatures": [
+    "crates/vm/src/builtins/tuple.rs:683",
+    "crates/vm/src/builtins/tuple.rs:499"
+  ],
+  "one_line_repro": "t=()\nfor _ in range(300000): t=(t,)\nhash(t)   # SIGSEGV; so do {t:1} and {t} (insertion hashes the key)",
+  "repro": "repro.py",
+  "evidence": "evidence.txt",
+  "status": "confirmed",
+  "reviewed_commit": "3290f287f",
+  "confirmed_build": "rustpython 0.5.0 (a9c2c529b, ~/.cargo/bin/rustpython)",
+  "cpython_oracle": "CPython 3.14.4 (/usr/bin/python3); ASan build of main 3.16.0a0 (heads/main:583cb03da83)",
+  "cpython_tracker": "https://github.com/python/cpython/issues/154318",
+  "found_by": [
+    "recursion-guard-auditor (the same-file slot asymmetry: `repr` enters a ReprGuard at tuple.rs:535, `hash` enters no recursion guard)",
+    "CPython differential / shared-crash ledger (both interpreters SIGSEGV; tracker check found it unreported → filed upstream as CPython #154318)"
+  ],
+  "toolkit_class": "unguarded-protocol-recursion (native C/Rust stack overflow, NOT a catchable RecursionError)",
+  "cpython_behavior": "identical — CPython also SIGSEGVs, in `tuple_hash` (Objects/tupleobject.c:385, unguarded `PyObject_Hash(item[i])`). Its newly added `frozendict` (main only) carries the same defect via copied code (`frozendict_pair_hash`). Filed upstream, both sites, as #154318. This is a SHARED-BUG, not ACCEPTABLE-by-contract.",
+  "guarded_twin": "In the SAME file: `Representable::repr` (tuple.rs:532) enters `ReprGuard` (tuple.rs:535) and comparison is depth-guarded, so `repr(t)` and `t == t` both degrade to a clean `RecursionError: maximum recursion depth` at depth 300k — only `Hashable::hash` (tuple.rs:499 → `tuple_hash` :682 → `val.hash(vm)` :683) enters NO recursion guard and SIGSEGVs. Byte-for-byte the same asymmetry CPython has (comparison/repr guarded, hash not).",
+  "affected": [
+    "tuple.__hash__",
+    "using a deeply nested tuple as a dict key / set member / frozenset element (insertion hashes it)",
+    "types.GenericAlias.__hash__ (hashes its __args__ tuple, so it dies in tuple_hash)"
+  ],
+  "prior_art": "Shared with CPython — filed as CPython #154318 (this session). Same defect CLASS as the genericalias `make_parameters` recursion (CPython #154275 / RustPython umbrella #4862; see catalog/shared_cpython_crashes.md), but a distinct site (element hash vs parameter walk).",
+  "notes": "RustPython `tuple_hash` (tuple.rs:682) maps `val.hash(vm)` over the elements (`hash::hash_tuple(elements.iter().map(|val| val.hash(vm)))`, tuple.rs:683) with no `vm.with_recursion(...)`. A nested tuple recurses one native frame per level to the full nesting depth and overflows the stack (SIGSEGV) instead of raising RecursionError. Threshold is stack-size dependent (~200-300k on an 8 MB stack). The crash needs no explicit `hash()`: `{t: 1}`, `{t}`, `frozenset({t})` all hash the key on insertion and SIGSEGV the same way. FIX: wrap the element hashing in `vm.with_recursion(\"while hashing\", || ...)` — the depth guard `repr`/`compare` already use — NOT `ReprGuard`, which keys on object-id re-entrance (for cycles) and would not catch deep *acyclic* nesting. frozenset is immune in both interpreters (elements are hashed+cached at construction, so the top-level hash is O(1)); RustPython has no `frozendict`, so the CPython issue's second site does not apply here."
+}

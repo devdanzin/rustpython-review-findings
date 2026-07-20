@@ -1,0 +1,57 @@
+# RPYR-0013 evidence — tuple.__hash__ unguarded recursion → native stack overflow.
+# RustPython 0.5.0 (a9c2c529b, ~/.cargo/bin/rustpython) vs CPython 3.14.4
+# (/usr/bin/python3) and an ASan build of CPython main 3.16.0a0.
+# Reproducer at every level: t=(); for _ in range(300000): t=(t,)
+
+# ============================================================================
+# The crash — SHARED by both interpreters (a bug in both; NOT ACCEPTABLE)
+# ============================================================================
+
+$ rustpython -c 't=()
+for _ in range(300000): t=(t,)
+hash(t)'
+Segmentation fault (core dumped)           # exit 139
+
+$ python3 -c 't=()
+for _ in range(300000): t=(t,)
+hash(t)'
+Segmentation fault (core dumped)           # exit 139
+
+# No explicit hash() needed — using the tuple as a dict key / set member hashes
+# it on insertion and SIGSEGVs identically on both:
+#   {t: 1}   -> SIGSEGV      {t}   -> SIGSEGV      frozenset({t})   -> SIGSEGV
+
+# ============================================================================
+# The guarded twins — same structure, same depth, degrade cleanly (NO crash)
+# ============================================================================
+
+$ rustpython -c 't=()
+for _ in range(300000): t=(t,)
+repr(t)'
+RecursionError: maximum recursion depth exceeded while getting the repr of an object   # exit 1
+
+$ python3 -c 't=()
+for _ in range(300000): t=(t,)
+repr(t)'
+RecursionError: Stack overflow (used 16340 kB) while getting the repr of an object      # exit 1
+
+#   t == t  likewise raises RecursionError (verified to depth 2,000,000), never a segfault.
+#   Only hash is unguarded. RustPython: repr enters a ReprGuard (tuple.rs:535); hash
+#   (tuple.rs:499 -> tuple_hash :682 -> val.hash(vm) :683) enters no recursion guard.
+
+# ============================================================================
+# CPython root-cause confirmation (ASan build of main 3.16.0a0) — names the frame
+# ============================================================================
+
+# hash(deeply nested tuple):
+SUMMARY: AddressSanitizer: stack-overflow Objects/tupleobject.c in tuple_hash
+    #1..#N tuple_hash  Objects/tupleobject.c:385:27   (unguarded PyObject_Hash(item[i]), repeats until overflow)
+
+# hash(deeply nested frozendict, nested through VALUES) — copied-code sibling, main only:
+SUMMARY: AddressSanitizer: stack-overflow Objects/dictobject.c in frozendict_hash
+    frames alternate frozendict_hash <-> frozendict_pair_hash (unguarded PyObject_Hash(value))
+
+# frozenset is immune in both (elements hashed + cached at construction; top-level hash is O(1);
+# RustPython verified fine at depth 2,000,000). RustPython has no frozendict.
+
+# Filed upstream (both CPython sites) as https://github.com/python/cpython/issues/154318
