@@ -10,10 +10,15 @@ this file into the toolkit's ``data/`` to fold these review-found bugs into the
 toolkit's regression baseline — the same way it already imports the fuzzing
 campaign's catalog.
 
-Only ``confirmed`` findings contribute rows (a ``lead``/``draft`` finding is not
-yet a reproduced crash; ``folded`` retired ids are skipped). A finding may carry
-several signatures (e.g. mmap ``find`` + ``rfind`` share one root cause across
-two lines); each becomes a row.
+Only ``confirmed`` findings **that crash the interpreter** contribute rows
+(``kind`` in {panic, abort, segv}). A ``lead``/``draft`` finding is not yet a
+reproduced crash; a ``folded`` retired id is skipped; and a non-crash ``kind``
+such as ``leak`` (an uncollectable-cycle finding from the gc-traverse auditor)
+is skipped too — its signature is a missing-traverse *site*, not a panic site,
+so it must not enter the panic cross-ref (it would read as "absent" against a
+fresh panic scan). Such findings belong in a future ``known_traverse_gaps.tsv``
+for the gc auditor. A finding may carry several signatures (e.g. mmap ``find`` +
+``rfind`` share one root cause across two lines); each becomes a row.
 
 Mirrors ``rustpython-findings/scripts/gen_known_panics.py`` and
 ``cpython-tsan-findings/scripts/gen_known_races.py``.
@@ -27,6 +32,7 @@ REPORTS = ROOT / "reports"
 OUT = ROOT / "catalog" / "known_panics.tsv"
 
 _CONTRIBUTING = {"confirmed", "reported", "fixed"}
+_CRASH_KINDS = {"panic", "abort", "segv"}
 
 
 def main() -> None:
@@ -37,9 +43,13 @@ def main() -> None:
         d = json.loads(meta.read_text())
         status = str(d.get("status", "")).split(":", 1)[0]
         rid = d["id"]
+        kind = str(d.get("kind", "panic"))
         sigs = [s.strip() for s in d.get("signatures", []) if s.strip()]
         if status not in _CONTRIBUTING:
             skipped.append((rid, status))
+            continue
+        if kind not in _CRASH_KINDS:
+            skipped.append((rid, f"non-crash:{kind}"))
             continue
         ids.add(rid)
         for sig in sigs:

@@ -1,0 +1,20 @@
+# RPYR-0010 evidence — uncollectable-cycle leak, weakref-strength differential.
+# repro.py run verbatim on both interpreters. 'alive_after_collect=True' == LEAKED.
+
+$ rustpython repro.py    # RustPython 0.5.0 (a9c2c529b)
+  user-class(ctrl)         alive_after_collect=False -> collected
+  deque(self-cycle)        alive_after_collect=True  -> LEAKED
+  deque(embedded node)     alive_after_collect=True  -> LEAKED
+  defaultdict(embed node)  alive_after_collect=True  -> LEAKED
+
+$ python3 repro.py       # CPython 3.14.4 (oracle)
+  user-class(ctrl)         alive_after_collect=False -> collected
+  deque(self-cycle)        alive_after_collect=False -> collected
+  deque(embedded node)     alive_after_collect=False -> collected
+  defaultdict(embed node)  alive_after_collect=False -> collected
+
+# Minimal self-cycle (deque), weakref-proven:
+$ rustpython -c 'import gc,weakref;from collections import deque;d=deque();d.append(d);w=weakref.ref(d);del d;gc.collect();print("leaked" if w() is not None else "collected")'
+leaked
+$ python3 (same) ->
+collected

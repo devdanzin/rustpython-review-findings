@@ -1,0 +1,20 @@
+# Reproduced on rustpython 0.5.0 (a9c2c529b, ~/.cargo/bin/rustpython), each script run alone.
+# CPython 3.14.4 oracle raises "OverflowError: Python int too large to convert to C ssize_t" for all three.
+
+$ rustpython -c 'import itertools; itertools.combinations(range(5), 2**64)'
+thread 'main' (2740767) panicked at crates/vm/src/stdlib/itertools.rs:1205:34:
+called `Option::unwrap()` on a `None` value
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+[exit=101]
+
+$ rustpython -c 'import itertools; itertools.combinations_with_replacement(range(5), 2**64)'
+thread 'main' (2740772) panicked at crates/vm/src/stdlib/itertools.rs:1306:34:
+called `Option::unwrap()` on a `None` value
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+[exit=101]
+
+$ rustpython -c 'import itertools; itertools.permutations(range(5), 2**64)'
+thread 'main' (2740788) panicked at crates/vm/src/stdlib/itertools.rs:1412:36:
+called `Option::unwrap()` on a `None` value
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+[exit=101]

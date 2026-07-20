@@ -10,3 +10,6 @@ RPYR-0004	crates/stdlib/src/mmap.rs:812
 RPYR-0005	crates/stdlib/src/mmap.rs:903
 RPYR-0006	crates/vm/src/stdlib/_collections.rs:317
 RPYR-0007	crates/vm/src/sequence.rs:107
+RPYR-0009	crates/vm/src/stdlib/itertools.rs:1205
+RPYR-0009	crates/vm/src/stdlib/itertools.rs:1306
+RPYR-0009	crates/vm/src/stdlib/itertools.rs:1412

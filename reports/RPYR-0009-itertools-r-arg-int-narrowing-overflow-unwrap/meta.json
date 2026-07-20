@@ -1,0 +1,33 @@
+{
+  "id": "RPYR-0009",
+  "slug": "itertools-r-arg-int-narrowing-overflow-unwrap",
+  "title": "RPYR-0009 — `itertools.combinations`/`combinations_with_replacement`/`permutations` panic on an oversized `r`: the constructor guards `r` for negativity but not for `usize` overflow, then `to_usize().unwrap()` (itertools.rs:1205/1306/1412)",
+  "short_title": "`itertools.combinations(range(5), 2**64)` panic",
+  "kind": "panic",
+  "signatures": [
+    "crates/vm/src/stdlib/itertools.rs:1205",
+    "crates/vm/src/stdlib/itertools.rs:1306",
+    "crates/vm/src/stdlib/itertools.rs:1412"
+  ],
+  "one_line_repro": "import itertools; itertools.combinations(range(5), 2**64)",
+  "repro": "repro.py",
+  "panic_output": "panic.txt",
+  "status": "confirmed",
+  "reviewed_commit": "3290f287f",
+  "confirmed_build": "rustpython 0.5.0 (a9c2c529b, ~/.cargo/bin/rustpython)",
+  "cpython_oracle": "CPython 3.14.4 (/usr/bin/python3)",
+  "found_by": [
+    "panic-site-auditor (int_narrowing signal, whole-tree run)",
+    "git-history-analyzer (maintainer-fixed twin #6561; tree-wide sweep proving complete population)"
+  ],
+  "toolkit_class": "python-reachable-panic",
+  "cpython_behavior": "raises OverflowError: Python int too large to convert to C ssize_t (all three)",
+  "guarded_twin": "The negative side IS already guarded in each constructor (`if r.is_negative() { return Err(vm.new_value_error(\"r must be non-negative\")) }`) — the fix is the symmetric too-large guard. Elsewhere in stdlib every other `to_usize()` on a Python-controlled value discharges the Option safely with `?` rather than `.unwrap()` (e.g. `_io.rs:227` `self.size?.to_usize()`, `_sre.rs:651` `self.lastindex.to_usize()?`). Maintainer-fixed twin of the identical int-narrowing class: RustPython #6561 (7b36c9e) \"Handle oversized __hash__ results without panicking\" and #7633 (71380be) \"Fix process abort on large float format precision\".",
+  "affected": [
+    "itertools.combinations",
+    "itertools.combinations_with_replacement",
+    "itertools.permutations"
+  ],
+  "prior_art": "unreported",
+  "notes": "One root cause, three sibling constructors of the itertools module. Each accepts a Python int `r`, guards `r.is_negative()` -> ValueError, then narrows with `.to_usize().unwrap()` (combinations `r.to_usize()` :1205; combinations_with_replacement `r.to_usize()` :1306; permutations `val.to_usize()` :1412, inside the `Some(r)` arm of `match r.flatten()`). A non-negative Python int exceeding usize::MAX (e.g. 2**64) makes `to_usize()` return None, so `.unwrap()` panics and aborts the VM. Panic line numbers on the binary match the source tree exactly (no drift). The whole-tree git-history-analyzer sweep found these three are the COMPLETE population of `to_usize()/to_u32()/to_u64().unwrap()` on Python ints in stdlib — nothing else. combinations (:1205) and permutations (:1412) bodies last touched 2020-04-27 (~6-year latent). Same class as RUSTPY-0017 (_ctypes int-too-large) in the fuzzing catalog. Uniform fix: `.ok_or_else(|| vm.new_overflow_error(\"r too large\".to_owned()))?`."
+}

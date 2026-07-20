@@ -13,11 +13,12 @@ import pathlib
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 REPORTS = ROOT / "reports"
 
-KIND_ORDER = ["panic", "abort", "segv"]
+KIND_ORDER = ["panic", "abort", "segv", "leak"]
 KIND_TITLE = {
     "panic": "Python-reachable panics",
     "abort": "Aborts (SIGABRT)",
     "segv": "Segfaults",
+    "leak": "Uncollectable-cycle leaks (missing GC traverse)",
 }
 # A finding stamped GENERATED_AT must be passed in via args to keep runs
 # deterministic; the module avoids Date.now-style nondeterminism only for the

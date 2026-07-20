@@ -1,0 +1,29 @@
+{
+  "id": "RPYR-0010",
+  "slug": "collections-deque-defaultdict-missing-gc-traverse",
+  "title": "RPYR-0010 — `collections.deque` and `collections.defaultdict` leak reference cycles: the payload owns Python references but declares no GC `Traverse`, so the cycle collector cannot trace through it (_collections.rs:33 / :759)",
+  "short_title": "`deque`/`defaultdict` cycle leak (no GC traverse)",
+  "kind": "leak",
+  "signatures": [
+    "crates/vm/src/stdlib/_collections.rs:33",
+    "crates/vm/src/stdlib/_collections.rs:759"
+  ],
+  "one_line_repro": "import gc, weakref; from collections import deque; d = deque(); d.append(d); w = weakref.ref(d); del d; gc.collect(); assert w() is not None  # leaked (CPython: w() is None)",
+  "repro": "repro.py",
+  "evidence": "evidence.txt",
+  "status": "confirmed",
+  "reviewed_commit": "3290f287f",
+  "confirmed_build": "rustpython 0.5.0 (a9c2c529b, ~/.cargo/bin/rustpython)",
+  "cpython_oracle": "CPython 3.14.4 (/usr/bin/python3)",
+  "found_by": [
+    "gc-traverse-auditor (missing_traverse, whole-tree run — top cycle-plausibility payloads)",
+    "git-history-analyzer (sibling-traverse migration dating: #6623/#6760/#6780 added traverse to siblings; _collections was missed)"
+  ],
+  "toolkit_class": "gc-traverse-gap (uncollectable-cycle leak)",
+  "cpython_behavior": "collects the cycle — CPython's deque and defaultdict both define tp_traverse, so a self-referential cycle is reclaimed by gc.collect(); the object's weakref goes dead and its finalizer runs",
+  "guarded_twin": "Every sibling container in the SAME VM that declares a Traverse impl has its cycles collected — verified in the same harness: list (append self-cycle) and dict (item self-cycle) are both COLLECTED on RustPython, as is a user-class self-cycle. History dates the asymmetry: PyList/PyDict/PyTuple/PyStr/function/frame got traverse in #6780 (9301ae274) and generator/coroutine in #6760 — but PyDeque never had a traverse commit and PyDefaultDict was added brand-new in #8132 (af6b51776) without one.",
+  "affected": ["collections.deque", "collections.defaultdict"],
+  "prior_art": "unreported",
+  "promotes": "First reproduction-confirmed instance of the gc-traverse experimental class (previously 0-confirmed). The class is leak-only (no crash); this report demonstrates a real uncollectable cycle with a weakref-strength differential oracle.",
+  "notes": "One root cause, two container types in crates/vm/src/stdlib/_collections.rs. (1) PyDeque (:33) owns `deque: PyRwLock<VecDeque<PyObjectRef>>` and its `#[pyclass(module=\"collections\", name=\"deque\", unhashable=true)]` attr carries no `traverse`, so HAS_TRAVERSE=false and the collector never traces the deque's elements — a cycle routed through the deque leaks. (2) PyDefaultDict (:759) is a dict subclass (`base = PyDict`) whose payload embeds `dict: PyDict` and `default_factory: PyRwLock<Option<PyObjectRef>>`; with no traverse, both the default_factory AND the embedded base-dict items are hidden from the collector. Evidence (evidence.txt): weakref-proven for deque (the deque object is still alive after gc.collect on RustPython, dead on CPython); proven for defaultdict via a weakref-able Node embedded in the cycle (Node alive after collect on RustPython, dead on CPython); a user-class control and list/dict baselines collect correctly on both interpreters, so the harness is sound and the divergence is RustPython-specific. Broader scope (same class, NOT individually reproduced here — do not claim as confirmed): the itertools iterator cluster (chain/cycle/tee/... ~24 payloads) is the same forgotten-opt-in, structurally analogous to zip/map/filter which DO declare traverse. Fix: add `traverse` to each `#[pyclass]` (auto-derive traces the ref fields; skip the scalar `state`/`maxlen`/atomics), mirroring how list/dict were fixed in #6780."
+}
