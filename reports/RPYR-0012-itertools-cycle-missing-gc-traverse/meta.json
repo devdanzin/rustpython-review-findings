@@ -1,0 +1,33 @@
+{
+  "id": "RPYR-0012",
+  "slug": "itertools-cycle-missing-gc-traverse",
+  "title": "RPYR-0012 — `itertools.cycle` (and the whole itertools iterator cluster) leak reference cycles: the payload owns Python references but declares no GC `Traverse` (itertools.rs:242)",
+  "short_title": "`itertools.cycle` self-cycle leak (no GC traverse)",
+  "kind": "leak",
+  "signatures": [
+    "crates/vm/src/stdlib/itertools.rs:242"
+  ],
+  "one_line_repro": "import gc, weakref, itertools; d=[]; c=itertools.cycle(d); n=type('N',(),{})(); n.c=c; d.append(n); next(c); w=weakref.ref(n); del c,d,n; gc.collect(); assert w() is not None  # leaked (CPython: collected)",
+  "repro": "repro.py",
+  "evidence": "evidence.txt",
+  "status": "confirmed",
+  "reviewed_commit": "3290f287f",
+  "confirmed_build": "rustpython 0.5.0 (a9c2c529b, ~/.cargo/bin/rustpython)",
+  "cpython_oracle": "CPython 3.14.4 (/usr/bin/python3)",
+  "found_by": [
+    "gc-traverse-auditor (whole-tree v0.2 run — ranked the top cycle-plausibility payload of the itertools cluster)",
+    "git-history-analyzer (dated the forgotten opt-in: the Jan-2026 traverse rollout skipped itertools)"
+  ],
+  "toolkit_class": "gc-traverse-gap (uncollectable-cycle leak)",
+  "cpython_behavior": "collects the cycle — CPython's itertools iterators define tp_traverse, so a self-referential cycle through a cycle/chain/tee object is reclaimed by gc.collect().",
+  "guarded_twin": "Every sibling container AND its iterators declare traverse — list/dict/tuple/set and list_iterator/tuple_iterator are all traced (verified: the same weakref harness collects them). History dates the asymmetry: the Jan-2026 traverse rollout (#6760 generator/coroutine, #6623 sslsocket/super, #6780 list/dict/tuple/str/function/frame) added traverse across the object model but skipped the ENTIRE itertools + collections family (`grep -c traverse itertools.rs` = 0). Same forgotten-opt-in mechanism as RPYR-0010.",
+  "affected": [
+    "itertools.cycle",
+    "itertools.chain", "itertools.tee", "itertools.product", "itertools.combinations",
+    "itertools.combinations_with_replacement", "itertools.permutations", "itertools.groupby",
+    "itertools.islice", "itertools.starmap", "itertools.accumulate", "itertools.zip_longest",
+    "(the ~21-payload itertools iterator cluster, all missing traverse)"
+  ],
+  "prior_art": "RPYR-0010 explicitly scoped the itertools cluster as 'same class, NOT individually reproduced here'. This report reproduces it (cycle is the exemplar). See [[RPYR-0010]] (collections deque/defaultdict) — same root cause, different module.",
+  "notes": "One root cause (a #[pyclass] iterator payload that owns Python refs but declares no `traverse`), reproduced on the most weaponizable member. `PyItertoolsCycle` (itertools.rs:242) owns `saved: PyRwLock<Vec<PyObjectRef>>` and `iter: PyIter`, no traverse. Unlike product/combinations/permutations — which materialize their `pool` eagerly at CONSTRUCTION (so a back-reference must exist before construction) — cycle ACCUMULATES yielded items into `saved` POST-construction (`saved.write().push(item.clone())` at itertools.rs:268), so a self-cycle is injectable after the object exists: `d=[]; c=cycle(d); d.append(n); next(c)` makes `c.saved=[n]` with `n.c=c`. Weakref-proven: the embedded node is alive after `gc.collect()` on RustPython, collected on CPython; a user-class control collects on both. Broader: all ~21 itertools iterators (and the collections deque/defaultdict of RPYR-0010) need the same one-line `traverse` opt-in, mirroring how list/dict were fixed in #6780."
+}

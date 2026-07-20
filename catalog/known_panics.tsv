@@ -13,3 +13,5 @@ RPYR-0007	crates/vm/src/sequence.rs:107
 RPYR-0009	crates/vm/src/stdlib/itertools.rs:1205
 RPYR-0009	crates/vm/src/stdlib/itertools.rs:1306
 RPYR-0009	crates/vm/src/stdlib/itertools.rs:1412
+RPYR-0011	crates/stdlib/src/math.rs:733
+RPYR-0011	crates/stdlib/src/math.rs:735

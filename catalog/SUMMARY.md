@@ -1,10 +1,13 @@
 # RustPython static-review findings — summary
 
 Snapshot: 2026-07-20 · RustPython `0.5.0` · static review against source `3290f287f`, reproduced
-on the `a9c2c529b` binary · **9 reproduced bugs (RPYR-0001…0007, 0009, 0010) + 1 lead (RPYR-0008)**.
-RPYR-0009 and RPYR-0010 came out of the first **whole-tree** toolkit run (all six agents on all
-472 files at once); RPYR-0010 is the **first reproduction-confirmed instance of the gc-traverse
-class** and the first *leak* (rather than crash) in the catalog.
+on the `a9c2c529b` binary · **11 reproduced bugs (RPYR-0001…0007, 0009…0012) + 1 lead (RPYR-0008)**.
+RPYR-0009/0010 came from the first **whole-tree** run (v0.1, six agents); **RPYR-0011/0012 came
+from the v0.2 whole-tree run** (all thirteen agents — the seven class-expansion agents' debut),
+which also reproduced live several fuzzer-catalog crashes (0008 uninit, 0017/0024 ctypes, 0018-I
+debug-format, 0012–0016 eager-collect) and produced the **[shared-CPython-crash ledger](shared_cpython_crashes.md)**
+— a discipline for "both interpreters crash" cases (a RustPython crash that "matches CPython" may
+be an unreported bug in both; the genericalias `make_parameters` case is CPython #154275).
 
 **Method.** Static review with [rustpy-review-toolkit](https://github.com/devdanzin/rustpy-review-toolkit):
 tree-sitter-rust scanners find high-recall candidates; per-aspect agents triage each by reading
@@ -32,6 +35,8 @@ Disjoint from the `fusil` fuzzing catalog in `rustpython-findings` (`RUSTPY-*`).
 | RPYR-0008 | `new_invalid_state_error` downcasts a `.call()` result | panic (lead) | `_asyncio.rs:2737` | history | raises `InvalidStateError` |
 | RPYR-0009 | `itertools.combinations`/`_with_replacement`/`permutations(r=2**64)` int-narrow | panic | `itertools.rs:1205`,`1306`,`1412` | panic-site + history | raises `OverflowError` |
 | RPYR-0010 | `deque`/`defaultdict` leak reference cycles (no GC traverse) | leak | `_collections.rs:33`,`759` | gc-traverse + history | collects the cycle |
+| RPYR-0011 | `math.sumprod` big-int generic path eager-collects both iterables | abort | `math.rs:733`,`735` | eager-collect-parity | streams at O(1) memory |
+| RPYR-0012 | `itertools.cycle` (+ the itertools cluster) leak reference cycles (no GC traverse) | leak | `itertools.rs:242` | gc-traverse + history | collects the cycle |
 
 ## The recurring shape
 

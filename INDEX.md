@@ -2,7 +2,7 @@
 
 Soundness and crash bugs in the **RustPython interpreter's own Rust source**, found by static review with [**rustpy-review-toolkit**](https://github.com/devdanzin/rustpy-review-toolkit) and then reproduced on the interpreter. Each row links to a self-contained report (root cause, minimal Python reproducer, the Rust panic output, and a suggested fix).
 
-_9 reproduced bug(s) + 1 lead(s). Generated 2026-07-20._
+_11 reproduced bug(s) + 1 lead(s). Generated 2026-07-20._
 
 These are **disjoint from** and complementary to the fuzzing catalog in [`rustpython-findings`](https://github.com/devdanzin/rustpython-findings) (`RUSTPY-*`) — none of the bugs below appear there. The **Found by** column records which toolkit agent surfaced each one.
 
@@ -27,9 +27,11 @@ Status: `confirmed` (reproduced on the binary) · `#N` (RustPython issue open) �
 | Report | Title | Site | Found by | Status |
 |---|---|---|---|---|
 | [RPYR-0007](reports/RPYR-0007-sequence-mul-guard-hole-abort/report.md) | shared `mul` guard-hole → SIGABRT | `sequence.rs:107` | panic-site-auditor | confirmed (reproduced) |
+| [RPYR-0011](reports/RPYR-0011-math-sumprod-generic-path-eager-collect-oom/report.md) | `math.sumprod(count(),count())` OOM-abort | `math.rs:733 math.rs:735` | eager-collect-parity | confirmed (reproduced) |
 
 ## Uncollectable-cycle leaks (missing GC traverse)
 
 | Report | Title | Site | Found by | Status |
 |---|---|---|---|---|
 | [RPYR-0010](reports/RPYR-0010-collections-deque-defaultdict-missing-gc-traverse/report.md) | `deque`/`defaultdict` cycle leak (no GC traverse) | `_collections.rs:33 _collections.rs:759` | gc-traverse-auditor, git-history-analyzer | confirmed (reproduced) |
+| [RPYR-0012](reports/RPYR-0012-itertools-cycle-missing-gc-traverse/report.md) | `itertools.cycle` self-cycle leak (no GC traverse) | `itertools.rs:242` | gc-traverse-auditor, git-history-analyzer | confirmed (reproduced) |

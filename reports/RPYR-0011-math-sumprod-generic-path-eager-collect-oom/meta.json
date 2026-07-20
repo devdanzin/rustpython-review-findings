@@ -1,0 +1,27 @@
+{
+  "id": "RPYR-0011",
+  "slug": "math-sumprod-generic-path-eager-collect-oom",
+  "title": "RPYR-0011 — `math.sumprod` eagerly collects both iterables in its big-int generic-path fallback where CPython streams: an unbounded/huge input OOM-aborts the interpreter (math.rs:733/735)",
+  "short_title": "`math.sumprod(count(),count())` OOM-abort",
+  "kind": "abort",
+  "signatures": [
+    "crates/stdlib/src/math.rs:733",
+    "crates/stdlib/src/math.rs:735"
+  ],
+  "one_line_repro": "import math, itertools; math.sumprod(itertools.count(10**19), itertools.count(10**19))  # RustPython: SIGABRT (OOM); CPython: streams at O(1)",
+  "repro": "repro.py",
+  "evidence": "evidence.txt",
+  "status": "confirmed",
+  "reviewed_commit": "3290f287f",
+  "confirmed_build": "rustpython 0.5.0 (a9c2c529b, ~/.cargo/bin/rustpython)",
+  "cpython_oracle": "CPython 3.14.4 (/usr/bin/python3)",
+  "found_by": [
+    "eager-collect-parity (whole-tree v0.2 run — surfaced as a novel LOW `ArgIterable` candidate; the agent's hand-trace of the body escalated it to a real, reproduced gap of a different shape than 0012-0016)"
+  ],
+  "toolkit_class": "eager-collect-parity (unbounded eager collect vs CPython stream, Class G)",
+  "cpython_behavior": "streams both iterables lazily at O(1) memory (peak RSS flat at ~11 MB regardless of N); an unbounded generator runs forever at constant memory and never OOMs.",
+  "guarded_twin": "CPython's streaming `math.sumprod` is the direct twin. Within RustPython, `math.fsum`/`math.prod`/`all`/`any` consume their iterable lazily/short-circuit (verified SAFE in the fuzzer's eager-collect note) — sumprod's generic path is the outlier that materializes. The fix is to stream the generic path instead of `chain(iter).collect()`.",
+  "affected": ["math.sumprod"],
+  "prior_art": "unreported. NOT in the fuzzing catalog: findings 0012-0016 are `Vec<PyObjectRef>` FromArgs *bind*-time gaps; this is a *body-level* generic-path collect reached only when an operand exceeds `i64::MAX` (forcing the big-int path). Same CLASS (Class G) but a distinct location and mechanism.",
+  "notes": "sumprod (`math.rs:607`) has an i64 fast path; once any operand overflows i64 it falls to the big-int generic path, which does `core::iter::once(Ok(p_i)).chain(p_iter).collect::<Vec<PyObjectRef>>()` at `:733` and the same for q at `:735` — materializing BOTH remaining iterators in full before multiplying. CPython streams element-by-element. Evidence: finite peak-RSS scales O(N) on RustPython (N=1M/4M/8M/20M -> 40/86/146/329 MB) vs CPython flat at 11 MB; the unbounded `sumprod(count(10**19), count(10**19))` SIGABRTs RustPython (exit 134, 'memory allocation failed') while CPython spins at O(1) memory. This is NOT Class J (abort-vs-MemoryError) — CPython does NOT balloon, it streams — so it is a genuine parity gap, not out-of-scope. Uncatchable DoS (SIGABRT, not a Python-level MemoryError)."
+}

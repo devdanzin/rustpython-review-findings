@@ -1,0 +1,19 @@
+# RPYR-0011 evidence — math.sumprod eager-collect OOM.
+# RustPython 0.5.0 (a9c2c529b, ~/.cargo/bin/rustpython) vs CPython 3.14.4 (/usr/bin/python3).
+
+# === Unbounded: RustPython SIGABRT (OOM), CPython streams O(1) ===
+$ ( ulimit -v 1500000; rustpython -c 'import math,itertools; math.sumprod(itertools.count(10**19), itertools.count(10**19))' )
+memory allocation of 80 bytes failed
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+[exit=134]
+
+$ timeout 8 python3 -c 'import math,itertools; math.sumprod(itertools.count(10**19), itertools.count(10**19))'
+[exit=124]   # still running at O(1) memory — streams, never OOMs
+
+# === Finite peak-RSS scaling (both operands a generator yielding 10**19, N elements) ===
+#   N            RustPython      CPython
+#   1,000,000    40 MB           11 MB
+#   4,000,000    86 MB           11 MB
+#   8,000,000    146 MB          11 MB
+#   20,000,000   329 MB          11 MB
+# RustPython ~O(N) (the chain().collect() Vec + live big-ints); CPython flat O(1) (streams).
