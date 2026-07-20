@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Rust build artifacts (if any repro tooling is added later)
+target/
+
+# editor / OS junk
+*~
+*.bak
+*.swp
+.DS_Store
+Thumbs.db
+
+# scratch repro artifacts
+*.crash.out

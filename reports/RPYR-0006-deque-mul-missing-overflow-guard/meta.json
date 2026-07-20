@@ -1,0 +1,21 @@
+{
+  "id": "RPYR-0006",
+  "slug": "deque-mul-missing-overflow-guard",
+  "title": "RPYR-0006 — `collections.deque(...) * n` aborts on a capacity overflow: `_mul` is missing the memory-size guard every other sequence has (`_collections.rs:317`)",
+  "short_title": "`deque * n` missing overflow guard",
+  "kind": "panic",
+  "signatures": ["crates/vm/src/stdlib/_collections.rs:317"],
+  "one_line_repro": "import sys; from collections import deque; deque([0]) * sys.maxsize",
+  "repro": "repro.py",
+  "panic_output": "panic.txt",
+  "status": "confirmed",
+  "reviewed_commit": "3290f287f",
+  "confirmed_build": "rustpython 0.5.0 (a9c2c529b, ~/.cargo/bin/rustpython)",
+  "found_by": ["git-history-analyzer (similar-bug; seed fix RustPython #8270)"],
+  "toolkit_class": "arithmetic-overflow (pattern-set gap — abort inside std's allocator)",
+  "cpython_behavior": "raises MemoryError",
+  "guarded_twin": "crates/vm/src/sequence.rs — SequenceMutExt::imul / SequenceExt::mul apply the `n > 1 && size_of_val >= MAX_MEMORY_SIZE / n` guard; list/tuple/str/bytes/array all route through it. deque hand-rolls _mul and only calls the isize-overflow guard.",
+  "affected": ["collections.deque.__mul__", "collections.deque.__imul__"],
+  "prior_art": "unreported (the SIBLING fix is RustPython PR #8270, merged 4 days before the reviewed commit)",
+  "notes": "SCANNER-BLIND, HISTORY-FOUND. deque._mul only calls check_repeat_or_overflow_error(len, n) (the isize guard); for an unbounded deque a small len with a huge n passes that check, then `deque.iter().cycle().take(mul_len).collect::<VecDeque>()` pre-allocates from the size-hint and mul_len * size_of::<PyObjectRef>() overflows isize::MAX -> VecDeque capacity-overflow panic. Seed fix: bb49898b7 'Fix overflow handling for inplace sequence repetition (#8270)' added the size guard to SequenceMutExt::imul; deque never propagated it. No test guards it."
+}

@@ -1,0 +1,1 @@
+(lead — not yet reproduced; the crash path is reasoned in report.md, no captured panic output)

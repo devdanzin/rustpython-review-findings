@@ -1,0 +1,21 @@
+{
+  "id": "RPYR-0007",
+  "slug": "sequence-mul-guard-hole-abort",
+  "title": "RPYR-0007 — `seq * n` aborts (SIGABRT) on an unallocatable-but-in-range size: the shared `SequenceExt::mul` guard has a hole (`sequence.rs`)",
+  "short_title": "shared `mul` guard-hole → SIGABRT",
+  "kind": "abort",
+  "signatures": ["crates/vm/src/sequence.rs:107"],
+  "one_line_repro": "(1,) * (10**12)",
+  "repro": "repro.py",
+  "panic_output": "panic.txt",
+  "status": "confirmed",
+  "reviewed_commit": "3290f287f",
+  "confirmed_build": "rustpython 0.5.0 (a9c2c529b, ~/.cargo/bin/rustpython)",
+  "found_by": ["panic-site-auditor (Phase-4 hand audit; cross-file)"],
+  "toolkit_class": "allocator-abort (guard converts >isize::MAX to MemoryError but not merely-unallocatable sizes)",
+  "cpython_behavior": "raises MemoryError",
+  "guarded_twin": "n/a — this IS the shared guard; the fix is to use try_reserve/checked allocation and map failure to MemoryError, which fixes tuple/list/bytes/bytearray at once",
+  "affected": ["tuple.__mul__", "list.__mul__", "bytes.__mul__", "bytearray.__mul__", "str.__mul__ (via as_bytes)"],
+  "prior_art": "unreported",
+  "notes": "SEVERITY NOTE: this is an allocator-policy abort more than a logic bug, and is broad/shared. SequenceExt::mul's guard (sequence.rs:103) rejects totals exceeding isize::MAX BYTES (~9.2 EB) -> MemoryError, but a merely-unallocatable request such as (1,)*(10**12) = 8 TB is < isize::MAX, so it passes the guard and Vec::with_capacity(n*len) hits handle_alloc_error -> SIGABRT (exit 134). CPython raises MemoryError. The clean fix is Vec::try_reserve_exact + map_err(|_| vm.new_memory_error(...)). Boundary confirmed: (1,)*sys.maxsize DOES raise MemoryError (the guard catches >isize::MAX bytes); (1,)*(10**12) aborts (under the byte ceiling)."
+}

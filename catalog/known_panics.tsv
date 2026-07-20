@@ -1,0 +1,12 @@
+# bug_id	signature
+# rustpython-review-findings — confirmed panic sites (RPYR-*).
+# Same format as rustpython-findings/catalog/known_panics.tsv;
+# drop into rustpy-review-toolkit data/ for the known-issues cross-ref.
+RPYR-0001	crates/vm/src/exceptions.rs:1872
+RPYR-0002	crates/stdlib/src/_asyncio.rs:2408
+RPYR-0003	crates/stdlib/src/_asyncio.rs:1081
+RPYR-0004	crates/stdlib/src/mmap.rs:795
+RPYR-0004	crates/stdlib/src/mmap.rs:812
+RPYR-0005	crates/stdlib/src/mmap.rs:903
+RPYR-0006	crates/vm/src/stdlib/_collections.rs:317
+RPYR-0007	crates/vm/src/sequence.rs:107

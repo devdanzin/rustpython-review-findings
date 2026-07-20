@@ -1,0 +1,22 @@
+{
+  "id": "RPYR-0001",
+  "slug": "importerror-reduce-empty-args-unwrap",
+  "title": "RPYR-0001 — `pickle.dumps(ImportError())` aborts the interpreter: `__reduce__` unwraps `get_arg(0)` on an empty args tuple (`exceptions.rs`)",
+  "short_title": "`ImportError().__reduce__()` unwraps empty args",
+  "kind": "panic",
+  "signatures": ["crates/vm/src/exceptions.rs:1872"],
+  "signature_note": "line 1872 in the reviewed source tree (3290f287f); the a9c2c529b binary panics at exceptions.rs:1778 — ~94-line drift between the two checkouts.",
+  "one_line_repro": "import pickle; pickle.dumps(ImportError())",
+  "repro": "repro.py",
+  "panic_output": "panic.txt",
+  "status": "confirmed",
+  "reviewed_commit": "3290f287f",
+  "confirmed_build": "rustpython 0.5.0 (a9c2c529b, ~/.cargo/bin/rustpython)",
+  "found_by": ["panic-site-auditor (after the get_arg reachability calibration)"],
+  "toolkit_class": "python-reachable-panic",
+  "cpython_behavior": "returns (ImportError, ()) — no exception, no crash",
+  "guarded_twin": "crates/vm/src/exceptions.rs — PyOSError.__reduce__ guards the same access with `args.len() >= 2 && args.len() <= 5`; PyBaseException.__reduce__ uses self.args() wholesale (no indexing)",
+  "affected": ["ImportError", "ModuleNotFoundError"],
+  "prior_art": "unreported",
+  "notes": "Latent since the crates/vm layout was created — git log -S shows the get_arg(0).unwrap() was never guarded, and no test exercises pickling a no-arg ImportError. The scanner originally ranked this only CONSIDER; the get_arg-signal calibration (added get_arg( to user_index_or_arity) promoted it to FIX, which the agent then confirmed."
+}

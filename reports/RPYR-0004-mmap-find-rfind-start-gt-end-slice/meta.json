@@ -1,0 +1,21 @@
+{
+  "id": "RPYR-0004",
+  "slug": "mmap-find-rfind-start-gt-end-slice",
+  "title": "RPYR-0004 — `mmap.find`/`rfind` slice-panic when `start > end`: `get_find_range` clamps each bound but not their order (`mmap.rs:795`/`812`)",
+  "short_title": "`mmap.find(start>end)` slice panic",
+  "kind": "panic",
+  "signatures": ["crates/stdlib/src/mmap.rs:795", "crates/stdlib/src/mmap.rs:812"],
+  "one_line_repro": "import mmap; mmap.mmap(-1, 10).find(b\"x\", 5, 2)",
+  "repro": "repro.py",
+  "panic_output": "panic.txt",
+  "status": "confirmed",
+  "reviewed_commit": "3290f287f",
+  "confirmed_build": "rustpython 0.5.0 (a9c2c529b, ~/.cargo/bin/rustpython)",
+  "found_by": ["panic-site-auditor (user_index_or_arity signal)"],
+  "toolkit_class": "python-reachable-panic",
+  "cpython_behavior": "returns -1 for an empty/inverted range",
+  "guarded_twin": "the fix belongs in get_find_range itself — a single `end = end.max(start)` (or clamp start = start.min(end)); the read/read_byte/readline accessors in the same file DO clamp their bounds",
+  "affected": ["mmap.find", "mmap.rfind"],
+  "prior_art": "unreported",
+  "notes": "One root cause, two Python-facing methods. get_find_range (mmap.rs:774) computes start and end each via saturated_at(size), which independently clamps each bound to [0, size] but never enforces start <= end. When start > end, &slice[start..end] panics. Both find (795) and rfind (812) call get_find_range. Reproduced on the binary; find also triggers via the pos-default path: m.seek(9); m.find(b'x', None, 2)."
+}

@@ -1,0 +1,21 @@
+{
+  "id": "RPYR-0008",
+  "slug": "asyncio-new-invalid-state-error-downcast",
+  "title": "RPYR-0008 (lead) — `new_invalid_state_error` downcasts a called-type result: `Future.result()` on a pending future with a monkeypatched `InvalidStateError` (`_asyncio.rs:2737`)",
+  "short_title": "`new_invalid_state_error` downcasts a `.call()` result (lead)",
+  "kind": "panic",
+  "signatures": ["crates/stdlib/src/_asyncio.rs:2737"],
+  "one_line_repro": "Future.result() on a pending future after monkeypatching asyncio.exceptions.InvalidStateError to a non-exception factory",
+  "repro": "repro.py",
+  "panic_output": "panic.txt",
+  "status": "lead",
+  "reviewed_commit": "3290f287f",
+  "confirmed_build": "not yet reproduced (rustpython 0.5.0)",
+  "found_by": ["git-history-analyzer (similar-bug; internal-tier helper the scanner suppresses)"],
+  "toolkit_class": "python-reachable-panic (cross-function — internal-tier helper reached from a py method)",
+  "cpython_behavior": "raises InvalidStateError (the standard 'Result is not set' / 'not ready' exception)",
+  "guarded_twin": "crates/stdlib/src/_asyncio.rs — the function is defensive on every OTHER branch: Err(_) => vm.new_runtime_error(...), missing-attr => vm.new_runtime_error(...); only the success branch .unwrap()s the downcast",
+  "affected": ["_asyncio Future.result", "_asyncio Future.exception"],
+  "prior_art": "unreported",
+  "notes": "SAME SHAPE AS RPYR-0003 (a downcast of an exc_type.call() result), and a cross-function reachability case the panic SCANNER suppresses (new_invalid_state_error is an internal-tier free helper, not #[pyfunction]/#[pymethod]) — but it is reachable via Future.result()/exception() on a pending future. The history agent flagged it by pattern-matching the same downcast-of-called-type shape. Recorded as a LEAD: the code path is reasoned but a working end-to-end trigger (routing through the pending-future 'not ready' path with a monkeypatched InvalidStateError) has not been isolated. TODO before promoting to confirmed: build the trigger and capture the panic. Not contributed to known_panics.tsv until reproduced."
+}

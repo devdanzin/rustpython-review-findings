@@ -1,0 +1,21 @@
+{
+  "id": "RPYR-0002",
+  "slug": "asyncio-current-task-reassigned-dict-downcast",
+  "title": "RPYR-0002 — `_asyncio.current_task()` aborts when `_current_tasks` is rebound to a non-dict: `downcast::<PyDict>().unwrap()` (`_asyncio.rs:2408`)",
+  "short_title": "`asyncio.current_task()` downcasts a reassignable module attr",
+  "kind": "panic",
+  "signatures": ["crates/stdlib/src/_asyncio.rs:2408"],
+  "one_line_repro": "import _asyncio; _asyncio._current_tasks = 42; _asyncio.current_task(loop=object())",
+  "repro": "repro.py",
+  "panic_output": "panic.txt",
+  "status": "confirmed",
+  "reviewed_commit": "3290f287f",
+  "confirmed_build": "rustpython 0.5.0 (a9c2c529b, ~/.cargo/bin/rustpython)",
+  "found_by": ["panic-site-auditor", "git-history-analyzer (independently, via the guarded-twin asymmetry)"],
+  "toolkit_class": "python-reachable-panic",
+  "cpython_behavior": "reads its own thread-state task registry; a reassigned _asyncio._current_tasks does not crash the interpreter",
+  "guarded_twin": "crates/stdlib/src/_asyncio.rs — _enter_task (2503), _leave_task, _swap_current_task all downcast the SAME _current_tasks dict with `if let Ok(dict) = current_tasks.downcast::<PyDict>()`; only current_task uses .unwrap()",
+  "affected": ["_asyncio.current_task", "asyncio.current_task"],
+  "prior_art": "unreported",
+  "notes": "`_current_tasks` is a plain, Python-writable module attribute seeded as a PyDict via extend_module!, so a Python program can rebind it. get_current_tasks_dict reads it via vm.get_attribute_opt; the slow path (is_current_loop == false, e.g. an explicit loop= with no running loop) then downcasts+unwraps. Both the panic auditor (downcast_or_coerce signal) and the history agent (similar-bug: the three guarded twins vs the one bare unwrap) landed on this independently."
+}

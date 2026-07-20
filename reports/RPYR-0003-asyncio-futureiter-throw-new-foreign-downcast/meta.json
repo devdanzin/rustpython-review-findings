@@ -1,0 +1,21 @@
+{
+  "id": "RPYR-0003",
+  "slug": "asyncio-futureiter-throw-new-foreign-downcast",
+  "title": "RPYR-0003 — `Future.__await__().throw(E)` aborts when `E.__new__` returns a non-exception: `downcast().unwrap()` on the `.call()` result (`_asyncio.rs:1081`)",
+  "short_title": "`FutureIter.throw()` downcasts a `__new__`-controlled result",
+  "kind": "panic",
+  "signatures": ["crates/stdlib/src/_asyncio.rs:1081"],
+  "one_line_repro": "f.__await__().throw(E)  where E(Exception).__new__ returns a non-exception",
+  "repro": "repro.py",
+  "panic_output": "panic.txt",
+  "status": "confirmed",
+  "reviewed_commit": "3290f287f",
+  "confirmed_build": "rustpython 0.5.0 (a9c2c529b, ~/.cargo/bin/rustpython)",
+  "found_by": ["scan_panic_sites.py (flagged FIX)", "git-history-analyzer (confirmed real)"],
+  "toolkit_class": "python-reachable-panic",
+  "cpython_behavior": "raises TypeError (a __new__ returning a non-exception is rejected before it becomes the raised value)",
+  "guarded_twin": "crates/stdlib/src/_asyncio.rs — the map_err downcast idiom used correctly at 879, 920, 2038, 2297, 2762; this site .unwrap()s instead",
+  "affected": ["_asyncio Future.__await__().throw", "generator/coroutine throw on a future"],
+  "prior_art": "unreported",
+  "notes": "TOOLKIT META-EVAL HIGHLIGHT: the panic-site *scanner* flagged this FIX, but the panic-site *agent* WRONGLY dismissed it as ACCEPTABLE via a faulty payload-invariant argument (it assumed exc_type.call(()) returns a BaseException instance because exc_type was fast_issubclass(BaseException)-gated). The git-history-analyzer disagreed, and an empirical binary test settled it: `class E(Exception): __new__ returns 42` makes `E()` return 42, so the downcast of the .call() result fails. The gate is on exc_type (the class); the downcast is on exc (the instance) — a different value. This is the case that motivated keeping the invariant-downcast calibration's 'same-variable gate' rule (a gate on a DIFFERENT variable does not down-rank)."
+}

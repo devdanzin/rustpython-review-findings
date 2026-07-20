@@ -1,0 +1,21 @@
+{
+  "id": "RPYR-0005",
+  "slug": "mmap-move-dest-underflow-oob",
+  "title": "RPYR-0005 — `mmap.move(dest, src, count)` aborts on unclamped `size - dest` underflow → OOB slice (`mmap.rs:903`)",
+  "short_title": "`mmap.move(dest>size)` underflow → OOB",
+  "kind": "panic",
+  "signatures": ["crates/stdlib/src/mmap.rs:903"],
+  "one_line_repro": "import mmap; mmap.mmap(-1, 10).move(20, 0, 1)",
+  "repro": "repro.py",
+  "panic_output": "panic.txt",
+  "status": "confirmed",
+  "reviewed_commit": "3290f287f",
+  "confirmed_build": "rustpython 0.5.0 (a9c2c529b, ~/.cargo/bin/rustpython)",
+  "found_by": ["git-history-analyzer (similar-bug; the scanner has no pattern for this shape)"],
+  "toolkit_class": "arithmetic-underflow / index (pattern-set gap — no .unwrap()/panic! token)",
+  "cpython_behavior": "raises ValueError for an out-of-range move",
+  "guarded_twin": "crates/stdlib/src/mmap.rs — write() (L1150) checks `pos > size || size - pos < data.len()` FIRST; flush()/FlushOptions uses checked_sub; move_ uses the raw subtraction",
+  "affected": ["mmap.move"],
+  "prior_art": "unreported",
+  "notes": "SCANNER-BLIND, HISTORY-FOUND: move() is a #[pymethod] (py-tier), but it carries no .unwrap()/.expect()/panic!/.args[ token on the offending line — the panic is a raw `size - dest` unsigned subtraction and then an OOB slice write `new_args.args[0]`-style index — so the pattern scanner cannot see it. The history agent's similar-bug detection caught it by pattern-matching the guard idiom (write() has the guard, move_ does not). Debug builds panic at the `size - dest` subtraction (overflow-checks); release builds wrap past the guard, then the OOB slice at mmap.rs:903 aborts."
+}
