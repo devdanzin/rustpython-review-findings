@@ -1,0 +1,25 @@
+# RPYR-0014 evidence — hash dispatch unguarded. RustPython 0.5.0 (a9c2c529b) vs CPython 3.14.4.
+
+# GenericAlias.__hash__ (nested 400k)
+$ rustpython -c 'x=int
+for _ in range(400000): x=list[x]
+hash(x)'
+Segmentation fault (core dumped)          # exit 139
+
+$ python3 -c 'x=int
+for _ in range(400000): x=list[x]
+hash(x)'
+Segmentation fault (core dumped)          # exit 139  (shared — CPython routes through tuple_hash, #154318)
+
+# slice.__hash__ (nested 2,000,000) — same on both: SIGSEGV.
+
+# Guarded twins on the SAME nested object degrade cleanly (NO crash), proving the
+# asymmetry is a missing guard on the hash dispatch alone:
+$ rustpython -c 'x=int
+for _ in range(400000): x=list[x]
+repr(x)'
+RecursionError: maximum recursion depth exceeded ...   # exit 1  (object.rs:383 guards repr dispatch)
+
+# comparison likewise raises RecursionError, never a segfault.
+
+# Systemic: protocol/object.rs:695 (hash) has no vm.with_recursion; :291 (_cmp) and :383 (repr) do.

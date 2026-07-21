@@ -17,3 +17,16 @@ RPYR-0011	crates/stdlib/src/math.rs:733
 RPYR-0011	crates/stdlib/src/math.rs:735
 RPYR-0013	crates/vm/src/builtins/tuple.rs:499
 RPYR-0013	crates/vm/src/builtins/tuple.rs:683
+RPYR-0014	crates/vm/src/builtins/genericalias.rs:632
+RPYR-0014	crates/vm/src/builtins/slice.rs:270
+RPYR-0014	crates/vm/src/protocol/object.rs:695
+RPYR-0015	crates/vm/src/builtins/genericalias.rs:295
+RPYR-0015	crates/vm/src/builtins/genericalias.rs:329
+RPYR-0015	crates/vm/src/builtins/union.rs:236
+RPYR-0017	crates/vm/src/stdlib/_ctypes/pointer.rs:692
+RPYR-0018	crates/vm/src/stdlib/_imp.rs:329
+RPYR-0019	crates/vm/src/stdlib/posix.rs:1403
+RPYR-0019	crates/vm/src/stdlib/posix.rs:1409
+RPYR-0019	crates/vm/src/stdlib/posix.rs:1417
+RPYR-0020	crates/stdlib/src/_asyncio.rs:2491
+RPYR-0020	crates/vm/src/object/ext.rs:278

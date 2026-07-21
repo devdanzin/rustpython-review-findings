@@ -1,0 +1,31 @@
+{
+  "id": "RPYR-0020",
+  "slug": "asyncio-enter-task-debug-format-segv",
+  "title": "RPYR-0020 — `_asyncio._enter_task(loop, task)` Debug-formats an arbitrary `task` with `{:?}`, reaching the unsound `PyAtomicRef` Debug cast (RUSTPY-0018), so passing a function SIGSEGVs the interpreter (_asyncio.rs:2491 → object/ext.rs:278)",
+  "short_title": "`_asyncio._enter_task` `{:?}` reaches the RUSTPY-0018 unsound Debug → SIGSEGV",
+  "kind": "segv",
+  "signatures": [
+    "crates/stdlib/src/_asyncio.rs:2491",
+    "crates/vm/src/object/ext.rs:278"
+  ],
+  "one_line_repro": "import _asyncio, asyncio; l=asyncio.new_event_loop()\nasync def c(): pass\ndef g(): pass\n_asyncio._enter_task(l, c())\n_asyncio._enter_task(l, g)   # SIGSEGV",
+  "repro": "repro.py",
+  "evidence": "evidence.txt",
+  "status": "confirmed",
+  "reviewed_commit": "3290f287f",
+  "confirmed_build": "rustpython 0.5.0 (a9c2c529b, ~/.cargo/bin/rustpython)",
+  "cpython_oracle": "CPython 3.14.4 (/usr/bin/python3)",
+  "prior_art": "A Python-reachable TRIGGER for fuzzer RUSTPY-0018 (the unsound PyAtomicRef Debug at object/ext.rs — a cross-method pointer-cast inconsistency: Debug casts the stored pointer to bare T while Deref/load_raw/From treat it as Py<T>). RUSTPY-0018 is the root; this is a new live pure-Python path into it. No specific RustPython issue.",
+  "found_by": [
+    "debug-format-auditor (informed explore — the one live {:?}-on-pyobject trigger reaching the unsound Debug; the catalogued typevar/os triggers were traced to cosmetic)",
+    "unsafe-soundness-auditor (confirmed RUSTPY-0018 root still present and the only cross-method cast tree-wide)"
+  ],
+  "toolkit_class": "unsound-debug-trigger (memory-unsafety; native pointer misread → SIGSEGV, Class I gated on RUSTPY-0018)",
+  "cpython_behavior": "CPython raises a clean RuntimeError (loop-state / already-running); it never dereferences a mis-cast pointer. RustPython SIGSEGVs.",
+  "guarded_twin": "The root fix is RUSTPY-0018: `object/ext.rs:278` Debug does `.load().cast::<T>()` while Deref(307)/load_raw(320)/From all use `.cast::<Py<T>>()` — the stored pointer is a `Py<T>*`. One-char fix (`.cast::<Py<T>>()`) collapses the whole class to cosmetic. This trigger also warrants not Debug-formatting an arbitrary Python object in an error message (use repr).",
+  "affected": [
+    "_asyncio._enter_task(loop, task) where task is a PyFunction (code: PyAtomicRef always populated) or any object whose Debug formats a populated PyAtomicRef",
+    "the RUSTPY-0018 unsound Debug reached via any {:?} on a PyFunction/Coro payload"
+  ],
+  "notes": "`_asyncio._enter_task` (a #[pyfunction]) formats the task argument with `{:?}` unconditionally in the 'a task is already running' error (_asyncio.rs:2491). The only payloads whose Debug actually formats a PyAtomicRef are PyFunction (`code: PyAtomicRef<PyCode>`, always populated) and Coro (`exception: PyAtomicRef`, None until set). So the crash needs a POPULATED PyAtomicRef -> pass a FUNCTION (a fresh coroutine's exception is None and prints harmlessly, taking the safe path). Verified live: enter a first task, then `_enter_task(loop, some_function)` -> the {:?} hits `object/ext.rs:278`'s `.cast::<T>()` on a `Py<PyCode>*`, misreads header words as payload -> garbage deref -> SIGSEGV (exit 139); CPython raises RuntimeError. FIX (root): RUSTPY-0018 one-char cast fix at ext.rs:278; also switch the error message from `{:?}` to Python repr. The catalogued typevar.rs/os.rs {:?} triggers are, on reachability, cosmetic (their reaching types always have __name__ -> safe path)."
+}

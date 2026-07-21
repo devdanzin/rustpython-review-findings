@@ -1,0 +1,13 @@
+# RPYR-0018 evidence — _imp.find_frozen 2nd-arg unimplemented!() abort.
+# RustPython 0.5.0 (a9c2c529b) vs CPython 3.14.4.
+
+$ rustpython -c "import _imp; _imp.find_frozen('_frozen_importlib', True)"
+thread 'main' panicked at crates/vm/src/stdlib/_imp.rs:329:
+not implemented
+note: run with `RUST_BACKTRACE=1` ...            # exit 101 (panic-abort)
+
+$ python3 -c "import _imp; _imp.find_frozen('_frozen_importlib', True)"
+TypeError: find_frozen() takes exactly 1 positional argument (2 given)   # exit 1
+
+# The guard at _imp.rs:327 is `if withdata.into_option().is_some()` -- it fires on ANY
+# second argument (value ignored), reaching unimplemented!() at :329.

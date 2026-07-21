@@ -1,0 +1,17 @@
+# RPYR-0019 evidence — os.posix_spawn eager-collect.
+# RustPython 0.5.0 (a9c2c529b) vs CPython 3.14.4.
+
+# --- cheap type divergence (confirmed by synthesizer) ---
+$ rustpython -c "import os; os.waitpid(os.posix_spawn('/bin/true',(str(x) for x in range(3)),os.environ),0)"
+                                    # accepts + materializes the generator, spawns -> ran (exit 0)
+$ python3 -c "import os; os.posix_spawn('/bin/true',(str(x) for x in range(3)),os.environ)"
+TypeError: posix_spawn: argv must be a tuple or list   # O(1) type reject, exit 1
+
+# --- OOM abort on an infinite iterable (eager-collect-parity auditor, live) ---
+$ rustpython -c "import os, itertools; os.posix_spawn('/bin/true', map(str, itertools.count()), {})"
+                                    # balloons -> SIGABRT (exit 134)
+$ python3  -c "import os, itertools; os.posix_spawn('/bin/true', map(str, itertools.count()), {})"
+TypeError: posix_spawn: argv must be a tuple or list   # ~0.1s, O(1)
+
+# setsigdef/setsigmask: CPython validates streaming (ValueError at element 0 for count());
+# RustPython collects-then-validates -> SIGABRT. In-file twin execv/execve use Either<PyListRef,PyTupleRef>.

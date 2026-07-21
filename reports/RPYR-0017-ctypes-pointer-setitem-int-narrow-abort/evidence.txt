@@ -1,0 +1,18 @@
+# RPYR-0017 evidence — ctypes Pointer.__setitem__ int-narrow abort.
+# RustPython 0.5.0 (a9c2c529b) vs CPython 3.14.4.
+
+$ rustpython -c 'import ctypes
+p=ctypes.pointer(ctypes.c_int(0))
+p[0]=2**64'
+thread 'main' panicked at crates/vm/src/stdlib/_ctypes/pointer.rs:692:
+int too large to convert
+note: run with `RUST_BACKTRACE=1` ...            # exit 101 (panic-abort)
+
+$ python3 -c 'import ctypes
+p=ctypes.pointer(ctypes.c_int(0))
+p[0]=2**64
+print(p[0])'
+0                                                 # exit 0 — CPython masks the write to the C width
+
+# In-file inconsistency: array/base/function ctypes writes use silent .unwrap_or(0);
+# only the pointer write uses .expect("int too large"). Sibling of RUSTPY-0017 (simple.rs from-int).

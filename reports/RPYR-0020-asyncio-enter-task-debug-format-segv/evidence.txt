@@ -1,0 +1,22 @@
+# RPYR-0020 evidence — _asyncio._enter_task {:?} -> unsound PyAtomicRef Debug -> SIGSEGV.
+# RustPython 0.5.0 (a9c2c529b) vs CPython 3.14.4.
+
+# --- function argument (populated PyAtomicRef.code) -> crash ---
+$ rustpython -c 'import _asyncio, asyncio
+loop = asyncio.new_event_loop()
+async def c(): pass
+def g(): pass
+_asyncio._enter_task(loop, c())
+_asyncio._enter_task(loop, g)'
+Segmentation fault (core dumped)        # exit 139
+
+$ python3 <same>
+RuntimeError: ...                       # exit 1 (clean)
+
+# --- coroutine argument (exception: PyAtomicRef(None)) -> NO crash ---
+$ rustpython -c '... _enter_task(loop, coro1); _enter_task(loop, coro2)'
+RuntimeError: ... Task ... { ... exception: PyAtomicRef(None) } ] is being executed.   # exit 1
+# The {:?} fires and prints the coroutine's Debug, but PyAtomicRef(None) takes the safe
+# (null) path -> no mis-cast. The crash requires a POPULATED PyAtomicRef (a function's `code`).
+
+# Root: object/ext.rs:278 Debug does .cast::<T>() where the stored ptr is Py<T>* (RUSTPY-0018).

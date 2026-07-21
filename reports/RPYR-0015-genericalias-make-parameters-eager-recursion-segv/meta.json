@@ -1,0 +1,31 @@
+{
+  "id": "RPYR-0015",
+  "slug": "genericalias-make-parameters-eager-recursion-segv",
+  "title": "RPYR-0015 — `genericalias` `make_parameters_from_slice` recurses into nested list/tuple args with no guard, and RustPython computes it EAGERLY at subscript, so `list[L]` with a self-referential `L` SIGSEGVs where CPython (lazy `__parameters__`) does not",
+  "short_title": "genericalias `make_parameters` eager unguarded recursion → SIGSEGV (RustPy-only)",
+  "kind": "segv",
+  "signatures": [
+    "crates/vm/src/builtins/genericalias.rs:329",
+    "crates/vm/src/builtins/genericalias.rs:295",
+    "crates/vm/src/builtins/union.rs:236"
+  ],
+  "one_line_repro": "L=[]\nL.append(L)\nlist[L]   # SIGSEGV on RustPython; CPython is fine (params are lazy)",
+  "repro": "repro.py",
+  "evidence": "evidence.txt",
+  "status": "confirmed",
+  "reviewed_commit": "3290f287f",
+  "confirmed_build": "rustpython 0.5.0 (a9c2c529b, ~/.cargo/bin/rustpython)",
+  "cpython_oracle": "CPython 3.14.4 (/usr/bin/python3)",
+  "prior_art": "RustPython umbrella #2796 (open) = fuzzer RUSTPY-0007a, whose second fleet EXPLICITLY names `genericalias::make_parameters_from_slice` as a native recursion → SIGSEGV site. CPython twin filed as #154275 (`_Py_make_parameters` recurses without a guard; fix PR #154277). This is the RustPython side.",
+  "found_by": [
+    "recursion-guard-auditor (informed whole-tree explore — separated this from the hash class: it is a distinct raw-Rust recursion, NOT on the object.rs:695 hash dispatch)"
+  ],
+  "toolkit_class": "unguarded-protocol-recursion (eager parameter walk; native stack overflow)",
+  "cpython_behavior": "RustPython-only for the plain subscript `list[L]`: RustPython computes __parameters__ EAGERLY at subscript time and SIGSEGVs; CPython computes it LAZILY so `list[L]` alone is fine (CPython crashes only when __parameters__ is actually forced — that is CPython #154275). So RustPython crashes on strictly more inputs.",
+  "guarded_twin": "The hash/compare/repr paths are guarded by `vm.with_recursion` (see RPYR-0014); make_parameters is a separate raw Rust recursion (`make_parameters_from_slice` self-calls at genericalias.rs:329) that never passes through any of them → needs its OWN with_recursion wrap.",
+  "affected": [
+    "types.GenericAlias subscription that walks nested list/tuple args (genericalias.rs make_parameters_from_slice)",
+    "typing.Union / X|Y via union.rs:236 (delegates into the same walk)"
+  ],
+  "notes": "`make_parameters_from_slice` collects type parameters by recursing into any arg that is a list/tuple (genericalias.rs:329 self-call) with no recursion guard. RustPython invokes it eagerly when the alias is created (`list[L]`), so a self-referential or deeply-nested list arg overflows the native stack immediately. Verified live: `L=[]; L.append(L); list[L]` -> RustPython SIGSEGV (exit 139); CPython `list[L]` is fine (lazy) and only crashes on `list[L].__parameters__` (= #154275). Also crashes acyclically: `x=[0]; {x=[x]}x3e5; list[x]`. FIX: wrap the make_parameters descent in `vm.with_recursion(...)`, as CPython PR #154277 wraps `_Py_make_parameters` in `Py_EnterRecursiveCall`. Distinct from RPYR-0014 (that is the hash *dispatch*; this is a standalone param-walk)."
+}

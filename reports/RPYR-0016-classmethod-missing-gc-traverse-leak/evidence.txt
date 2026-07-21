@@ -1,0 +1,16 @@
+# RPYR-0016 evidence — classmethod missing GC traverse, weakref differential.
+# RustPython 0.5.0 (a9c2c529b, ~/.cargo/bin/rustpython) vs CPython 3.14.4 (/usr/bin/python3).
+
+$ rustpython repro.py
+  control (user self-cycle)          alive_after_collect=False -> collected
+  classmethod callable cycle         alive_after_collect=True  -> LEAKED
+  staticmethod callable cycle        alive_after_collect=False -> collected
+
+$ python3 repro.py
+  control (user self-cycle)          alive_after_collect=False -> collected
+  classmethod callable cycle         alive_after_collect=False -> collected
+  staticmethod callable cycle        alive_after_collect=False -> collected
+
+# Only the classmethod cycle leaks, and only on RustPython. The control collects on both
+# (harness sound), and the structurally identical staticmethod cycle collects on RustPython
+# too -- because staticmethod.rs:10 carries #[pyclass(traverse)] and classmethod.rs:30 does not.

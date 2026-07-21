@@ -1,0 +1,32 @@
+{
+  "id": "RPYR-0019",
+  "slug": "posix-spawn-eager-collect-abort",
+  "title": "RPYR-0019 — `os.posix_spawn` binds argv/setsigdef/setsigmask as eager `ArgIterable` and materializes before validating, so an infinite iterable OOM-aborts the VM (SIGABRT) where CPython rejects it in O(1) — and it needs no privilege (posix.rs:1403/1409/1417)",
+  "short_title": "`os.posix_spawn` eager-collect (argv/setsigdef/setsigmask) → SIGABRT",
+  "kind": "abort",
+  "signatures": [
+    "crates/vm/src/stdlib/posix.rs:1403",
+    "crates/vm/src/stdlib/posix.rs:1409",
+    "crates/vm/src/stdlib/posix.rs:1417"
+  ],
+  "one_line_repro": "import os, itertools; os.posix_spawn('/bin/true', map(str, itertools.count()), os.environ)   # SIGABRT (CPython: TypeError in ~0.1s)",
+  "repro": "repro.py",
+  "evidence": "evidence.txt",
+  "status": "confirmed",
+  "reviewed_commit": "3290f287f",
+  "confirmed_build": "rustpython 0.5.0 (a9c2c529b, ~/.cargo/bin/rustpython)",
+  "cpython_oracle": "CPython 3.14.4 (/usr/bin/python3)",
+  "prior_art": "Same class as RPYR-0011 (math.sumprod) and the RPYR-0012..0016 eager-collect-parity gaps (fuzzer RUSTPY-0016 = posix.setgroups). NEW sites: posix_spawn argv/setsigdef/setsigmask. Crucially UNPRIVILEGED (unlike setgroups, which needs root), so more weaponizable. No specific RustPython issue.",
+  "found_by": [
+    "eager-collect-parity (informed explore — 3 new gaps in #[derive(FromArgs)] struct PosixSpawnArgs, invisible to the scanner; reproduced live)"
+  ],
+  "toolkit_class": "eager-collect-parity (unbounded eager materialization vs CPython O(1) reject/stream, Class G)",
+  "cpython_behavior": "argv: CPython rejects a non-list/tuple in O(1) (`TypeError: posix_spawn: argv must be a tuple or list`) — a generator/map never materializes. setsigdef/setsigmask: CPython validates each element as it iterates against a fixed-size sigset, raising `ValueError: signal number ... out of range` at the first bad element (O(1) memory). RustPython collects the whole iterable first, then validates → an infinite input balloons to OOM → SIGABRT.",
+  "guarded_twin": "IN-FILE: the sibling `execv`/`execve` in the same posix.rs type argv as `Either<PyListRef, PyTupleRef>` — an O(1) type reject, exactly CPython's argv contract. posix_spawn uses `ArgIterable` instead. Fix argv by switching to `Either<PyListRef,PyTupleRef>`.",
+  "affected": [
+    "os.posix_spawn(path, argv, env, ...) — argv (posix.rs:1403, collected ~1525)",
+    "os.posix_spawn(..., setsigdef=<iterable>) (posix.rs:1409, collected ~1484)",
+    "os.posix_spawn(..., setsigmask=<iterable>) (posix.rs:1417, collected ~1513)"
+  ],
+  "notes": "`PosixSpawnArgs` (a `#[derive(FromArgs)]` struct — invisible to the eager-collect scanner) binds argv as `ArgIterable<OsPath>` and setsigdef/setsigmask as `ArgIterable<i32>`, each fully materialized before validation. Confirmed differential (cheap): a finite generator argv is ACCEPTED and materialized by RustPython (`os.posix_spawn('/bin/true',(str(x) for x in range(3)),env)` runs) while CPython raises `TypeError: argv must be a tuple or list` immediately. Agent-reproduced the OOM: `os.posix_spawn('/bin/true', map(str, itertools.count()), {})` balloons RustPython to SIGABRT; CPython O(1). posix_spawn needs no privilege (cf. RPYR-0016/RUSTPY-0016 setgroups → root), so it is the more weaponizable member. FIX: argv -> `Either<PyListRef,PyTupleRef>` (matches the in-file execv/execve twin); setsigdef/setsigmask -> validate while streaming (bounded sigset) instead of collect-then-check. Class J (both-balloon) posix_spawn `file_actions` correctly filtered OUT."
+}

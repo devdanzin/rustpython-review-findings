@@ -1,0 +1,30 @@
+{
+  "id": "RPYR-0017",
+  "slug": "ctypes-pointer-setitem-int-narrow-abort",
+  "title": "RPYR-0017 — ctypes `Pointer.__setitem__` narrows the written value with `.expect(\"int too large\")`, so `p[0] = 2**64` aborts the VM where CPython masks to the C width (_ctypes/pointer.rs:690-693)",
+  "short_title": "ctypes `Pointer.__setitem__` int-narrow → panic-abort",
+  "kind": "abort",
+  "signatures": [
+    "crates/vm/src/stdlib/_ctypes/pointer.rs:692"
+  ],
+  "one_line_repro": "import ctypes; p=ctypes.pointer(ctypes.c_int(0)); p[0]=2**64   # panic-abort (CPython masks to 0)",
+  "repro": "repro.py",
+  "evidence": "evidence.txt",
+  "status": "confirmed",
+  "reviewed_commit": "3290f287f",
+  "confirmed_build": "rustpython 0.5.0 (a9c2c529b, ~/.cargo/bin/rustpython)",
+  "cpython_oracle": "CPython 3.14.4 (/usr/bin/python3)",
+  "prior_art": "Sibling of fuzzer RUSTPY-0017 (the ctypes simple-type int-narrowing class, `_ctypes/simple.rs:895/908/921` — `c_char_p(2**64)` etc.). Same `.to_*().expect(\"int too large\")` shape, a NEW site the 0017 report did not cover. No specific RustPython issue.",
+  "found_by": [
+    "ctypes-ffi-auditor (informed explore — the run's real new ctypes find; the only `.expect()` narrowing outside simple.rs)",
+    "panic-site-auditor (independently surfaced the same site — dual-found)"
+  ],
+  "toolkit_class": "python-reachable-panic (int-narrow-to-C-width abort; ctypes Class H)",
+  "cpython_behavior": "CPython masks the write value to the C width (assigning 2**64 to a c_int slot stores 0); it does not abort. RustPython panics.",
+  "guarded_twin": "In-file inconsistency: every array/base/function ctypes write sibling uses the SILENT `.to_usize().unwrap_or(0)` variant (which fails safe), while the pointer write path uses `.expect(\"int too large\")` (which aborts). The simple-type siblings (RUSTPY-0017) share the abort shape; the fix is the same file-sweep to a checked conversion that raises a Python error.",
+  "affected": [
+    "ctypes.POINTER(T) element assignment: p[i] = <out-of-C-width int>",
+    "reached via PyCPointer.__setitem__ (AsMapping) -> setitem_by_index -> write_value_at_address"
+  ],
+  "notes": "`Pointer.__setitem__` narrows the assigned value to the pointee C width with `.to_u8()/.to_i16()/.to_i32()/.to_i64().expect(\"int too large\")` (pointer.rs:690-693). Any Python int outside the target width panics -> VM abort (exit 101). Verified live: `p=ctypes.pointer(ctypes.c_int(0)); p[0]=2**64` -> `panicked at pointer.rs:692 'int too large'`, exit 101; CPython stores the masked value (0) and continues. This is the write-side face of RUSTPY-0017 (which is the from-int construction side in simple.rs). FIX: same as 0017 -- map the out-of-range conversion to a Python OverflowError instead of `.expect()`, ideally the same helper across simple.rs/array.rs/pointer.rs. Note the silent `.unwrap_or(0)` siblings are NOT this bug: the ctypes-ffi differential showed they fail safe (RustPython raises ValueError on NULL rather than deref garbage) -- see the informed-explore SUMMARY."
+}

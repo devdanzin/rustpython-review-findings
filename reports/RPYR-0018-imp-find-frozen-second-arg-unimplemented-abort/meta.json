@@ -1,0 +1,28 @@
+{
+  "id": "RPYR-0018",
+  "slug": "imp-find-frozen-second-arg-unimplemented-abort",
+  "title": "RPYR-0018 — `_imp.find_frozen(name, <any 2nd arg>)` hits `unimplemented!()` because the guard tests `.is_some()` instead of the value, aborting the VM (stdlib _imp.rs:329)",
+  "short_title": "`_imp.find_frozen` 2nd-arg → `unimplemented!()` abort",
+  "kind": "abort",
+  "signatures": [
+    "crates/vm/src/stdlib/_imp.rs:329"
+  ],
+  "one_line_repro": "import _imp; _imp.find_frozen('_frozen_importlib', True)   # unimplemented!() abort (CPython: TypeError)",
+  "repro": "repro.py",
+  "evidence": "evidence.txt",
+  "status": "confirmed",
+  "reviewed_commit": "3290f287f",
+  "confirmed_build": "rustpython 0.5.0 (a9c2c529b, ~/.cargo/bin/rustpython)",
+  "cpython_oracle": "CPython 3.14.4 (/usr/bin/python3)",
+  "prior_art": "Appears new / unfiled — no fuzzer RUSTPY-* match and no hit on the RustPython tracker for `find_frozen`. A `todo!`/`unimplemented!`-body reached from a Python API (the toolkit treats a reachable `unimplemented!` as CONSIDER, unlike a dead `unreachable!` stub).",
+  "found_by": [
+    "panic-site-auditor (informed explore — NEW CONSIDER, HIGH confidence: guard checks presence not value)"
+  ],
+  "toolkit_class": "python-reachable-panic (unimplemented!() reached via a live Python API path)",
+  "cpython_behavior": "CPython's `_imp.find_frozen` takes exactly one positional arg; a second arg raises TypeError. RustPython accepts a second arg, then aborts on it via unimplemented!().",
+  "guarded_twin": "The correct behaviour is CPython's own: reject the extra arg (or actually implement the withdata path). The bug is a guard that inspects presence (`.into_option().is_some()`) rather than validating/rejecting the value.",
+  "affected": [
+    "_imp.find_frozen(name, withdata=<anything truthy-or-not, just present>)"
+  ],
+  "notes": "`_imp.find_frozen`'s optional second parameter is guarded by `.into_option().is_some()` — the guard fires whenever a 2nd arg is passed AT ALL (the value is never inspected), reaching an `unimplemented!()` for the withdata code path -> release-build panic-abort (exit 101). Verified live: `import _imp; _imp.find_frozen('_frozen_importlib', True)` -> exit 101; CPython raises `TypeError: find_frozen() takes exactly 1 positional argument`. Trivially reachable (any 2nd arg, even a valid frozen module name). FIX: implement the withdata path, or reject extra args to match CPython's arity. Low-severity (obscure API) but a clean pure-Python interpreter abort."
+}

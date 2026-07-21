@@ -1,0 +1,35 @@
+{
+  "id": "RPYR-0014",
+  "slug": "hash-dispatch-unguarded-recursion-segv",
+  "title": "RPYR-0014 — the hash dispatch is unguarded: `PyObject::hash` (protocol/object.rs:695) has no `with_recursion` while repr/compare do, so `genericalias`/`slice`/`code` (and tuple, RPYR-0013) `__hash__` overflow the native stack → SIGSEGV",
+  "short_title": "hash dispatch unguarded (object.rs:695) → container `__hash__` SIGSEGV",
+  "kind": "segv",
+  "signatures": [
+    "crates/vm/src/protocol/object.rs:695",
+    "crates/vm/src/builtins/genericalias.rs:632",
+    "crates/vm/src/builtins/slice.rs:270"
+  ],
+  "one_line_repro": "x=int\nfor _ in range(400000): x=list[x]\nhash(x)   # SIGSEGV; slice(slice(...)) hash too",
+  "repro": "repro.py",
+  "evidence": "evidence.txt",
+  "status": "confirmed",
+  "reviewed_commit": "3290f287f",
+  "confirmed_build": "rustpython 0.5.0 (a9c2c529b, ~/.cargo/bin/rustpython)",
+  "cpython_oracle": "CPython 3.14.4 (/usr/bin/python3)",
+  "prior_art": "RustPython umbrella #2796 (open, \"Recursions in rust code trigger segmentation faults\") = fuzzer RUSTPY-0007a (which names hash/compare). RPYR-0013 (tuple.__hash__) is the same class. Shared with CPython (genericalias/slice hash route through tuple_hash there) = CPython #154318.",
+  "found_by": [
+    "recursion-guard-auditor (informed whole-tree explore — found the SYSTEMIC root: hash dispatch at object.rs:695 lacks the guard that repr(:383)/compare(:291) have)",
+    "git-history-analyzer (independently flagged genericalias.__hash__ as an RPYR-0013 sibling)"
+  ],
+  "toolkit_class": "unguarded-protocol-recursion (native stack overflow, NOT a catchable RecursionError)",
+  "cpython_behavior": "shares the crash for genericalias/slice hash (both route through CPython tuple_hash, filed as #154318). RustPython's fix is systemic and one-line.",
+  "guarded_twin": "SAME file, SAME dispatch layer: `PyObject::repr` (protocol/object.rs:383) and `PyObject::_cmp`/rich-compare (:291) both wrap their slot dispatch in `vm.with_recursion(...)` — verified live, deep repr and deep `<`/`==` raise a clean RecursionError. Only `PyObject::hash` (:695) omits it. One-line fix there guards EVERY `__hash__` at once (tuple RPYR-0013 included).",
+  "affected": [
+    "types.GenericAlias.__hash__ (genericalias.rs:632)",
+    "slice.__hash__ (slice.rs:270; slice hashable since 3.12)",
+    "code.__hash__ (code.rs:659; via nested-tuple co_consts)",
+    "tuple.__hash__ (RPYR-0013) — the same dispatch gap",
+    "any hash of these as a dict key / set member (insertion hashes)"
+  ],
+  "notes": "The recursion-guard agent traced the crash past the per-slot view (RPYR-0013 fixed only tuple.rs) to the DISPATCH: `PyObject::hash` (protocol/object.rs:695) calls the type's hash slot with no `vm.with_recursion` wrap, so any element-wise __hash__ recurses one native frame per level → stack overflow → SIGSEGV. Verified live: `x=int; {x=list[x]}x4e5; hash(x)` SIGSEGVs (genericalias), `slice(slice(...))x2e6; hash()` SIGSEGVs (slice) — both also SIGSEGV on CPython (shared, #154318). FIX: mirror :291/:383 — wrap the hash dispatch at object.rs:695 in `vm.with_recursion(\"while hashing\", ...)`; this subsumes RPYR-0013's per-slot tuple.rs fix and covers genericalias/slice/code too. Note: frozenset/union/range hash are NOT affected (cached bottom-up at construction / bounded). Toolkit calibration: the scanner missed all of these because the recursion is dispatched through free fns / the slot table, not visible in the slot body — the SYSTEMIC signal is the dispatch site."
+}

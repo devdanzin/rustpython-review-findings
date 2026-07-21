@@ -1,0 +1,29 @@
+{
+  "id": "RPYR-0016",
+  "slug": "classmethod-missing-gc-traverse-leak",
+  "title": "RPYR-0016 — `classmethod` declares no GC `traverse` while its sibling `staticmethod` does, so a reference cycle through a classmethod's wrapped callable is uncollectable (builtins/classmethod.rs:30)",
+  "short_title": "`classmethod` missing GC traverse → cycle leak (staticmethod has it)",
+  "kind": "leak",
+  "signatures": [
+    "crates/vm/src/builtins/classmethod.rs:30"
+  ],
+  "one_line_repro": "def f(cls): pass\nf.ref=n; cm=classmethod(f); n.cm=cm   # cycle n->cm->f->n leaks (CPython collects)",
+  "repro": "repro.py",
+  "evidence": "evidence.txt",
+  "status": "confirmed",
+  "reviewed_commit": "3290f287f",
+  "confirmed_build": "rustpython 0.5.0 (a9c2c529b, ~/.cargo/bin/rustpython)",
+  "cpython_oracle": "CPython 3.14.4 (/usr/bin/python3)",
+  "prior_art": "Same class as RPYR-0010 (deque/defaultdict) and RPYR-0012 (itertools.cycle): a ref-owning #[pyclass] with no `traverse`. Follows the merged traverse rollout PR #6780 (\"traverse and clear\") which added traverse across list/dict/tuple/generator/frame but skipped classmethod. No specific RustPython issue. Distinct from RUSTPY-0009/0011 (staticmethod/classmethod *repr* .unwrap()).",
+  "found_by": [
+    "git-history-analyzer (informed explore — spotted the smoking-gun asymmetry: sibling staticmethod.rs:10 has #[pyclass(traverse)] over an identical field; classmethod never got it)",
+    "gc-traverse-auditor (listed classmethod among the ~54 missing-traverse payloads)"
+  ],
+  "toolkit_class": "gc-traverse-gap (uncollectable-cycle leak)",
+  "cpython_behavior": "collects — CPython's classmethod defines tp_traverse over cm_callable, so a cycle through the wrapped callable is reclaimed by gc.collect().",
+  "guarded_twin": "The ADJACENT sibling `PyStaticMethod` (staticmethod.rs:10) is declared `#[pyclass(... traverse)]` over an identical `callable: PyMutex<PyObjectRef>` field. Verified live in one harness: the staticmethod cycle collects, the classmethod cycle leaks. Strongest possible static signal — the correct twin is one type over.",
+  "affected": [
+    "classmethod (a cycle through cm.__func__ / the wrapped callable)"
+  ],
+  "notes": "`PyClassMethod` owns `callable: PyMutex<PyObjectRef>` but its `#[pyclass]` declares no `traverse`, so HAS_TRAVERSE=false and the collector never traces the callable — a cycle routed through a classmethod's wrapped function is uncollectable. Weakref-proven: `def f(cls): pass; f.ref=n; cm=classmethod(f); n.cm=cm` makes the cycle n->cm->f->n; after `del` + `gc.collect()` the node is alive on RustPython, collected on CPython; a user-class control collects on both. The identical staticmethod cycle collects on RustPython because staticmethod.rs:10 carries `traverse`. FIX: add `traverse` to classmethod's #[pyclass] (derive traces `callable`), exactly the #6780 pattern. Broader: this is one of ~54 ref-owning payloads still missing traverse (gc-traverse-auditor), incl. the deque/dict/set iterators and the itertools accumulate/groupby/tee/pairwise accumulators — see [[RPYR-0010]] and [[RPYR-0012]]."
+}

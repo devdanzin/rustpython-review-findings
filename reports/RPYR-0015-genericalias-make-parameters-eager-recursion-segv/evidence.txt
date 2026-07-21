@@ -1,0 +1,21 @@
+# RPYR-0015 evidence — genericalias make_parameters eager recursion.
+# RustPython 0.5.0 (a9c2c529b) vs CPython 3.14.4.
+
+$ rustpython -c 'L=[]
+L.append(L)
+list[L]'
+Segmentation fault (core dumped)      # exit 139  -- RustPython crashes at the subscript
+
+$ python3 -c 'L=[]
+L.append(L)
+list[L]'
+                                      # exit 0  -- CPython is fine: __parameters__ is computed lazily
+
+# Forcing the lazy computation crashes CPython too (that is CPython #154275):
+$ python3 -c 'L=[]
+L.append(L)
+list[L].__parameters__'
+Segmentation fault (core dumped)      # exit 139
+
+# So RustPython (eager) crashes on strictly more inputs than CPython (lazy).
+# Non-cyclic deep nesting SIGSEGVs RustPython the same way (unguarded depth, not cycle-specific).

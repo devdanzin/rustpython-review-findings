@@ -96,6 +96,11 @@ Note: use `with_recursion` (a **depth** limit), not `ReprGuard` — `ReprGuard` 
 re-entrance (for *cycles*) and would not catch deep *acyclic* nesting, which is the case here (tuples
 are immutable and cannot be cyclic).
 
+**Better (systemic) fix — see [[RPYR-0014]]:** the informed explore traced this past the per-slot view to
+the hash **dispatch** (`protocol/object.rs:695`), which lacks the `with_recursion` wrap that repr(:383) and
+compare(:291) have. Guarding there fixes tuple, `genericalias`, `slice`, and `code` `__hash__` at once and
+supersedes the per-slot `tuple.rs` patch above.
+
 ## Impact
 
 Any Python program that hashes — or merely uses as a dict key / set member — a sufficiently deeply
@@ -108,7 +113,7 @@ denial-of-service on the interpreter.
 Surfaced by the `recursion-guard-auditor` (the same-file slot asymmetry — `repr` guarded at
 tuple.rs:535, `hash` unguarded) and the CPython differential / shared-crash ledger, which found the
 crash reproduces on CPython too and — after a tracker check — was **unreported**, so it was filed
-upstream as [CPython #154318](https://github.com/python/cpython/issues/154318). Same defect *class*
-as the genericalias `make_parameters` recursion (CPython #154275 / RustPython umbrella #4862), a
-distinct site. RustPython has no `frozendict`, so the CPython issue's second (copied-code) site does
+upstream as [CPython #154318](https://github.com/python/cpython/issues/154318). RustPython umbrella
+[#2796](https://github.com/RustPython/RustPython/issues/2796) (= fuzzer RUSTPY-0007a). Same defect *class*
+as the genericalias `make_parameters` recursion (CPython #154275; recorded [[RPYR-0015]]), a distinct site. RustPython has no `frozendict`, so the CPython issue's second (copied-code) site does
 not apply here.
